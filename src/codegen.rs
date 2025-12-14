@@ -17,6 +17,9 @@ use melior::{
     utility::{register_all_dialects, register_all_llvm_translations},
     Context, ExecutionEngine,
 };
+use melior::dialect::{arith, llvm};
+use melior::dialect::llvm::AllocaOptions;
+use melior::ir::attribute::IntegerAttribute;
 use return_stmt::compile_return;
 
 use crate::{
@@ -123,12 +126,49 @@ fn compile_function(ctx: &ModuleCtx<'_>, func: &Function) {
     let mut locals: HashMap<String, Value> = HashMap::new();
 
     // Allocate space for the arguments, get them from the block, storing them and save them on locals hashmap.
+    let arg_count = args.len();
+
+    let op = arith::constant(
+        ctx.ctx,
+        IntegerAttribute::new(IntegerType::new(ctx.ctx, 32).into(), 1).into(),
+        Location::unknown(ctx.ctx),
+    );
+    let op_ref = block.append_operation(op);
+
+    let value = op_ref.result(0).expect("IDK").into();
+
+    for index in 1..=arg_count {
+        let op = llvm::alloca(ctx.ctx, value, IntegerType::new(ctx.ctx, 32).into(), Location::unknown(ctx.ctx), AllocaOptions::default());
+
+        let op_ref = block.append_operation(op);
+
+        let val = op_ref.result(0).expect("IDK").into();
+
+        locals.insert(func.args[index - 1].clone(), val);
+    }
 
     for stmt in &func.body.stmts {
         compile_statement(ctx, &mut locals, &block, stmt);
     }
 
+    let i64_type = Type::parse(ctx.ctx, "i64").unwrap();
+
+    let func_type = FunctionType::new(
+        ctx.ctx,
+        &func_args,
+        &[i64_type],
+    );
+
+
     // Create the func operation here.
+    let func_op = func::func(ctx.ctx, StringAttribute::new(ctx.ctx, func.name.as_str()),
+                             TypeAttribute::new(func_type.into()),
+    region, &[] , Location::unknown(ctx.ctx));
+
+    let body = ctx.module.body();
+
+    body.append_operation(func_op);
+
 }
 
 fn compile_statement<'ctx: 'parent, 'parent>(

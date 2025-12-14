@@ -66,6 +66,7 @@ mod tests {
                 let engine = compile_program_jit(&program);
 
                 let res = call_program(&engine, $a, $b);
+                println!("The result is {}", res);
                 assert_eq!(res, $r);
             }
         };
