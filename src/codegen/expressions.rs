@@ -29,7 +29,7 @@ pub fn compile_expr<'ctx: 'parent, 'parent>(
         Expr::Number(value) => {
             let op = arith::constant(
                 ctx.ctx,
-                IntegerAttribute::new(IntegerType::new(ctx.ctx, 32).into(), *value).into(),
+                IntegerAttribute::new(IntegerType::new(ctx.ctx, 64).into(), *value).into(),
                 Location::unknown(ctx.ctx),
             );
             let op_ref = block.append_operation(op);
@@ -38,7 +38,7 @@ pub fn compile_expr<'ctx: 'parent, 'parent>(
         }
         Expr::Variable(name) => match locals.get(name) {
             Some(value) => {
-                let op = llvm::load(ctx.ctx, *value, IntegerType::new(ctx.ctx, 32).into(), Location::unknown(ctx.ctx), LoadStoreOptions::default());
+                let op = llvm::load(ctx.ctx, *value, IntegerType::new(ctx.ctx, 64).into(), Location::unknown(ctx.ctx), LoadStoreOptions::default());
                 let op_ref = block.append_operation(op);
 
                 op_ref.result(0).expect("IDK").into()
@@ -113,7 +113,7 @@ pub fn compile_expr<'ctx: 'parent, 'parent>(
         },
         Expr::Call { target, args } => {
             let arg_vec:Vec<Value<'_, '_>> = args.iter().map(|arg| compile_expr(ctx, locals, block, arg)).collect();
-            let op = func::call(ctx.ctx, FlatSymbolRefAttribute::new(ctx.ctx, target), &arg_vec, &[IntegerType::new(ctx.ctx, 32).into()], Location::unknown(ctx.ctx));
+            let op = func::call(ctx.ctx, FlatSymbolRefAttribute::new(ctx.ctx, target), &arg_vec, &[IntegerType::new(ctx.ctx, 64).into()], Location::unknown(ctx.ctx));
 
             let op_ref = block.append_operation(op);
 
