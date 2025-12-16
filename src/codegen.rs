@@ -18,7 +18,7 @@ use melior::{
     Context, ExecutionEngine,
 };
 use melior::dialect::{arith, llvm};
-use melior::dialect::llvm::AllocaOptions;
+use melior::dialect::llvm::{AllocaOptions, LoadStoreOptions};
 use melior::ir::attribute::IntegerAttribute;
 use return_stmt::compile_return;
 
@@ -130,21 +130,31 @@ fn compile_function(ctx: &ModuleCtx<'_>, func: &Function) {
 
     let op = arith::constant(
         ctx.ctx,
-        IntegerAttribute::new(IntegerType::new(ctx.ctx, 32).into(), 1).into(),
+        IntegerAttribute::new(IntegerType::new(ctx.ctx, 64).into(), 1).into(),
         Location::unknown(ctx.ctx),
     );
     let op_ref = block.append_operation(op);
 
     let value = op_ref.result(0).expect("IDK").into();
 
-    for index in 1..=arg_count {
-        let op = llvm::alloca(ctx.ctx, value, IntegerType::new(ctx.ctx, 32).into(), Location::unknown(ctx.ctx), AllocaOptions::default());
+    let i64_ty = IntegerType::new(ctx.ctx, 64).into();
+
+    let i64_ptr_ty = llvm::r#type::pointer(ctx.ctx, 64);
+
+    for index in 0..arg_count {
+        let op = llvm::alloca(ctx.ctx, value, i64_ptr_ty, Location::unknown(ctx.ctx), AllocaOptions::new().elem_type(Some(TypeAttribute::new(i64_ty))));
 
         let op_ref = block.append_operation(op);
 
         let val = op_ref.result(0).expect("IDK").into();
 
-        locals.insert(func.args[index - 1].clone(), val);
+        locals.insert(func.args[index].clone(), val);
+
+        let block_arg = block.argument(index).unwrap();
+
+        let op = llvm::store(ctx.ctx, block_arg.into(), val, Location::unknown(ctx.ctx), LoadStoreOptions::default());
+
+        block.append_operation(op);
     }
 
     for stmt in &func.body.stmts {
@@ -152,6 +162,8 @@ fn compile_function(ctx: &ModuleCtx<'_>, func: &Function) {
     }
 
     let i64_type = Type::parse(ctx.ctx, "i64").unwrap();
+
+    let body = ctx.module.body();
 
     let func_type = FunctionType::new(
         ctx.ctx,
@@ -164,8 +176,6 @@ fn compile_function(ctx: &ModuleCtx<'_>, func: &Function) {
     let func_op = func::func(ctx.ctx, StringAttribute::new(ctx.ctx, func.name.as_str()),
                              TypeAttribute::new(func_type.into()),
     region, &[] , Location::unknown(ctx.ctx));
-
-    let body = ctx.module.body();
 
     body.append_operation(func_op);
 
