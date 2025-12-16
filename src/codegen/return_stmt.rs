@@ -22,5 +22,5 @@ pub fn compile_return<'ctx, 'parent>(
         &[ret_val],
         Location::unknown(ctx.ctx),
     );
-    let _ = block.append_operation(op);
+    block.append_operation(op);
 }
